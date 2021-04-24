@@ -263,7 +263,7 @@ static int glue(load_elf, SZ)(const char *name, int fd,
             }
             /* address_offset is hack for kernel images that are
                linked at the wrong physical address.  */
-            if (translate_fn) {
+            if (false) {
                 addr = translate_fn(translate_opaque, ph->p_paddr);
             } else {
                 addr = ph->p_paddr;
