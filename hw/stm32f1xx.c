@@ -22,6 +22,7 @@
 #include "stm32.h"
 #include "stm32f1xx.h"
 #include "exec/address-spaces.h"
+#include "exec/memory.h"
 
 static const char *stm32f1xx_periph_name_arr[] = {
     ENUM_STRING(STM32F1XX_RCC),
@@ -70,6 +71,13 @@ static const char *stm32f1xx_periph_name_arr[] = {
     ENUM_STRING(STM32F1XX_PERIPH_COUNT),
 };
 
+static uint64_t kernel_load_translate_fn(void *opaque, uint64_t from_addr) {
+    if (from_addr == STM32_FLASH_ADDR_START) {
+        return 0x00000000;
+    }
+    return from_addr;
+}
+
 void stm32f1xx_init(
             ram_addr_t flash_size,
             ram_addr_t ram_size,
@@ -83,13 +91,18 @@ void stm32f1xx_init(
     qemu_irq *pic;
     int i;
 
+#if 0
     pic = armv7m_init(address_space_mem, flash_size, ram_size, kernel_filename, "cortex-m3");
+    //pic = armv7m_translated_init(address_space_mem, flash_size, ram_size, kernel_filename, kernel_load_translate_fn, NULL, "cortex-m3");
 
-    DeviceState *flash_dev = qdev_create(NULL, "stm32_flash");
-    qdev_prop_set_uint32(flash_dev, "size", flash_size * 1024);
-    qdev_init_nofail(flash_dev);
-    sysbus_mmio_map(SYS_BUS_DEVICE(flash_dev), 0, STM32_FLASH_ADDR_START);
 
+#else
+    pic = armv7m_translated_init(address_space_mem, flash_size, ram_size, kernel_filename, kernel_load_translate_fn, NULL, "cortex-m3");
+    MemoryRegionSection mrs = memory_region_find(address_space_mem, 0, WORD_ACCESS_SIZE);
+    MemoryRegion *flash_alias = g_new(MemoryRegion, 1);
+    memory_region_init_alias(flash_alias, "stm32f1xx.flash.alias", mrs.mr, 0, flash_size * 1024);
+    memory_region_add_subregion(address_space_mem, STM32_FLASH_ADDR_START, flash_alias);
+#endif
     DeviceState *rcc_dev = qdev_create(NULL, "stm32f1xx_rcc");
     qdev_prop_set_uint32(rcc_dev, "osc_freq", osc_freq);
     qdev_prop_set_uint32(rcc_dev, "osc32_freq", osc32_freq);
@@ -127,7 +140,7 @@ void stm32f1xx_init(
     stm32_init_periph(afio_dev, STM32F1XX_AFIO, 0x40010000, NULL);
 
     // Create UARTs:
-    struct {
+    /*struct {
         uint32_t addr;
         uint8_t irq_idx;
     } const uart_desc[] = {
@@ -147,5 +160,5 @@ void stm32f1xx_init(
         qdev_prop_set_ptr(uart_dev, "stm32_afio", afio_dev);
         qdev_prop_set_ptr(uart_dev, "stm32_check_tx_pin_callback", (void *)stm32_afio_uart_check_tx_pin_callback);
         stm32_init_periph(uart_dev, periph, uart_desc[i].addr, pic[uart_desc[i].irq_idx]);
-    }
+    }*/
 }
